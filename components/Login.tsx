@@ -132,9 +132,17 @@ const Login = ({ onLogin }: LoginProps) => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-primary-800 dark:text-neutral-200">
-                Parolă
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-sm font-medium text-primary-800 dark:text-neutral-200">
+                  Parolă
+                </label>
+                <a
+                  href="/forgot-password"
+                  className="text-xs text-accent-600 dark:text-accent-400 hover:underline"
+                >
+                  Ai uitat parola?
+                </a>
+              </div>
               <input
                 id="password"
                 name="password"

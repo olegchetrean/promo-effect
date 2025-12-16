@@ -1,8 +1,197 @@
-import { Router } from 'express';
+/**
+ * Clients Controller
+ * REST API endpoints for client management
+ */
+
+import { Router, Request, Response } from 'express';
+import { ClientsService } from './clients.service';
+import { authMiddleware, requireRole } from '../../middleware/auth.middleware';
 
 const router = Router();
+const clientsService = new ClientsService();
 
-// Placeholder for client routes
-router.get('/', (req, res) => res.status(501).json({ message: 'Client routes not implemented yet.' }));
+/**
+ * GET /api/clients - List all clients with pagination and filters
+ * Auth: Required
+ * Query params: page, limit, search, status
+ */
+router.get('/', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const filters = {
+      page: req.query.page ? parseInt(req.query.page as string) : 1,
+      limit: req.query.limit ? parseInt(req.query.limit as string) : 20,
+      search: req.query.search as string,
+      status: req.query.status as string,
+    };
+
+    const result = await clientsService.findAll(filters);
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch clients';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/clients/stats - Get client statistics
+ * Auth: Required
+ */
+router.get('/stats', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const stats = await clientsService.getStats();
+    res.json(stats);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch stats';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/clients/:id - Get single client by ID
+ * Auth: Required
+ */
+router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const client = await clientsService.findOne(req.params.id);
+    res.json(client);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch client';
+    
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/clients - Create new client
+ * Auth: Required
+ * Role: ADMIN, SUPER_ADMIN, MANAGER
+ */
+router.post('/', authMiddleware, requireRole(['ADMIN', 'SUPER_ADMIN', 'MANAGER']), async (req: Request, res: Response) => {
+  try {
+    const { companyName, contactPerson, email, phone, address, taxId, bankAccount } = req.body;
+
+    // Validation
+    if (!companyName || typeof companyName !== 'string' || companyName.trim().length < 2) {
+      return res.status(400).json({ error: 'Company name is required (min 2 characters)' });
+    }
+
+    if (!contactPerson || typeof contactPerson !== 'string' || contactPerson.trim().length < 2) {
+      return res.status(400).json({ error: 'Contact person name is required (min 2 characters)' });
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+
+    if (!phone || typeof phone !== 'string' || phone.trim().length < 6) {
+      return res.status(400).json({ error: 'Phone number is required (min 6 characters)' });
+    }
+
+    const client = await clientsService.create({
+      companyName: companyName.trim(),
+      contactPerson: contactPerson.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone.trim(),
+      address: address?.trim(),
+      taxId: taxId?.trim(),
+      bankAccount: bankAccount?.trim(),
+    }, req.user!.userId);
+
+    res.status(201).json(client);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create client';
+    
+    if (message.includes('already exists')) {
+      return res.status(409).json({ error: message });
+    }
+    
+    res.status(400).json({ error: message });
+  }
+});
+
+/**
+ * PUT /api/clients/:id - Update client
+ * Auth: Required
+ * Role: ADMIN, SUPER_ADMIN, MANAGER
+ */
+router.put('/:id', authMiddleware, requireRole(['ADMIN', 'SUPER_ADMIN', 'MANAGER']), async (req: Request, res: Response) => {
+  try {
+    const { companyName, contactPerson, email, phone, address, taxId, bankAccount, status } = req.body;
+
+    // Validation (only for provided fields)
+    if (companyName !== undefined && (typeof companyName !== 'string' || companyName.trim().length < 2)) {
+      return res.status(400).json({ error: 'Company name must be at least 2 characters' });
+    }
+
+    if (contactPerson !== undefined && (typeof contactPerson !== 'string' || contactPerson.trim().length < 2)) {
+      return res.status(400).json({ error: 'Contact person name must be at least 2 characters' });
+    }
+
+    if (email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    if (phone !== undefined && (typeof phone !== 'string' || phone.trim().length < 6)) {
+      return res.status(400).json({ error: 'Phone number must be at least 6 characters' });
+    }
+
+    if (status !== undefined && !['ACTIVE', 'INACTIVE', 'SUSPENDED'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be ACTIVE, INACTIVE, or SUSPENDED' });
+    }
+
+    const client = await clientsService.update(req.params.id, {
+      companyName: companyName?.trim(),
+      contactPerson: contactPerson?.trim(),
+      email: email?.toLowerCase().trim(),
+      phone: phone?.trim(),
+      address: address?.trim(),
+      taxId: taxId?.trim(),
+      bankAccount: bankAccount?.trim(),
+      status,
+    }, req.user!.userId);
+
+    res.json(client);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update client';
+    
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
+    }
+    
+    if (message.includes('already exists')) {
+      return res.status(409).json({ error: message });
+    }
+    
+    res.status(400).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/clients/:id - Soft delete client
+ * Auth: Required
+ * Role: ADMIN, SUPER_ADMIN
+ */
+router.delete('/:id', authMiddleware, requireRole(['ADMIN', 'SUPER_ADMIN']), async (req: Request, res: Response) => {
+  try {
+    const result = await clientsService.delete(req.params.id, req.user!.userId);
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete client';
+    
+    if (message.includes('not found')) {
+      return res.status(404).json({ error: message });
+    }
+    
+    if (message.includes('active bookings')) {
+      return res.status(409).json({ error: message });
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
 
 export default router;

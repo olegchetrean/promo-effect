@@ -6,6 +6,41 @@ const prisma = new PrismaClient();
 
 export class BookingsService {
   /**
+   * Get or create a Client record for a User
+   * This bridges the User and Client tables for booking creation
+   */
+  private async getOrCreateClientForUser(userId: string): Promise<string> {
+    // First, get the user details
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Check if a Client already exists with this email
+    let client = await prisma.client.findUnique({
+      where: { email: user.email },
+    });
+
+    // If no client exists, create one based on User data
+    if (!client) {
+      client = await prisma.client.create({
+        data: {
+          email: user.email,
+          companyName: user.company || user.name,
+          contactPerson: user.name,
+          phone: user.phone || '',
+          status: 'ACTIVE',
+        },
+      });
+    }
+
+    return client.id;
+  }
+
+  /**
    * Create new booking with automatic price calculation
    */
   async create(data: CreateBookingDTO, userId: string) {
@@ -18,7 +53,13 @@ export class BookingsService {
       throw new Error('Admin settings not configured');
     }
 
-    // 3. Find best price from AgentPrice table (if agent/price specified)
+    // 3. Resolve clientId - use provided clientId, or create/get Client for the current user
+    let clientId = data.clientId;
+    if (!clientId) {
+      clientId = await this.getOrCreateClientForUser(userId);
+    }
+
+    // 4. Find best price from AgentPrice table (if agent/price specified)
     let freightPrice = data.freightPrice || 0;
     let shippingLine = data.shippingLine || 'TBD';
     let agentId = data.agentId;
@@ -36,21 +77,21 @@ export class BookingsService {
 
       freightPrice = selectedPrice.freightPrice;
       shippingLine = selectedPrice.shippingLine;
-      agentId = selectedPrice.agentId;
+      agentId = selectedPrice.agentId || undefined;
     }
 
-    // 4. Calculate total price
+    // 5. Calculate total price
     const portTaxes = settings.portTaxes;
     const customsTaxes = settings.customsTaxes;
     const terrestrialTransport = settings.terrestrialTransport;
     const commission = settings.commission;
     const totalPrice = freightPrice + portTaxes + customsTaxes + terrestrialTransport + commission;
 
-    // 5. Create booking
+    // 6. Create booking
     const booking = await prisma.booking.create({
       data: {
         id,
-        clientId: data.clientId || userId, // Use provided clientId or current user
+        clientId, // Now properly resolved to a Client ID
         agentId,
         priceId,
 
@@ -92,7 +133,7 @@ export class BookingsService {
       },
     });
 
-    // 6. Create audit log
+    // 7. Create audit log
     await prisma.auditLog.create({
       data: {
         userId,
@@ -103,7 +144,7 @@ export class BookingsService {
       },
     });
 
-    // 7. TODO: Create notification (will be implemented in notification service)
+    // 8. TODO: Create notification (will be implemented in notification service)
     // await notificationService.send(booking.clientId, 'BOOKING_CONFIRMED', { booking });
 
     return booking;
@@ -117,7 +158,17 @@ export class BookingsService {
 
     // Authorization: Clients see only their bookings
     if (userRole === 'CLIENT') {
-      where.clientId = userId;
+      // Get the Client ID associated with this User
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        const client = await prisma.client.findUnique({ where: { email: user.email } });
+        if (client) {
+          where.clientId = client.id;
+        } else {
+          // User has no client record, return empty result
+          where.clientId = 'no-client-record';
+        }
+      }
     } else if (filters.clientId) {
       where.clientId = filters.clientId;
     }
@@ -235,9 +286,13 @@ export class BookingsService {
       throw new Error('Booking not found');
     }
 
-    // Authorization check
-    if (userRole === 'CLIENT' && booking.clientId !== userId) {
-      throw new Error('Forbidden: You can only view your own bookings');
+    // Authorization check for CLIENT role
+    if (userRole === 'CLIENT') {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const client = user ? await prisma.client.findUnique({ where: { email: user.email } }) : null;
+      if (!client || booking.clientId !== client.id) {
+        throw new Error('Forbidden: You can only view your own bookings');
+      }
     }
 
     return booking;
@@ -253,9 +308,13 @@ export class BookingsService {
       throw new Error('Booking not found');
     }
 
-    // Authorization check
-    if (userRole === 'CLIENT' && existing.clientId !== userId) {
-      throw new Error('Forbidden: You can only update your own bookings');
+    // Authorization check for CLIENT role
+    if (userRole === 'CLIENT') {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const client = user ? await prisma.client.findUnique({ where: { email: user.email } }) : null;
+      if (!client || existing.clientId !== client.id) {
+        throw new Error('Forbidden: You can only update your own bookings');
+      }
     }
 
     // Only admins/managers can update status
@@ -342,7 +401,21 @@ export class BookingsService {
   async getStats(userId: string, userRole: string) {
     const where: any = {};
     if (userRole === 'CLIENT') {
-      where.clientId = userId;
+      // Get the Client ID associated with this User
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        const client = await prisma.client.findUnique({ where: { email: user.email } });
+        if (client) {
+          where.clientId = client.id;
+        } else {
+          // No client record, return zeros
+          return {
+            total: 0,
+            byStatus: { CONFIRMED: 0, IN_TRANSIT: 0, DELIVERED: 0, CANCELLED: 0 },
+            totalRevenue: 0,
+          };
+        }
+      }
     }
 
     const [total, confirmed, inTransit, delivered, cancelled] = await Promise.all([

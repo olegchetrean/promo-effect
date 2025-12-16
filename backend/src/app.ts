@@ -14,7 +14,28 @@ const app = express();
 // Middlewares
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser tools (curl/postman) with no Origin
+    if (!origin) return callback(null, true);
+
+    const allowed = [
+      process.env.FRONTEND_URL, // optional explicit allow
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:3002',
+      'http://127.0.0.1:3002',
+    ].filter(Boolean) as string[];
+
+    // Allow same-LAN/dev origins (e.g. http://192.168.x.x:3002)
+    const isLanDevOrigin = /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)[0-9.]+(?::\d+)?$/.test(origin);
+
+    if (allowed.includes(origin) || isLanDevOrigin) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
 }));
 // FIX: The errors on app.use were likely due to a cascading type resolution issue.
 // Explicitly typing route handlers below should resolve this.

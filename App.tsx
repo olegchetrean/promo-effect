@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Login from './components/Login';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import LandingPage from './components/LandingPage';
 import DashboardLayout from './components/DashboardLayout';
 import MainDashboard from './components/MainDashboard';
@@ -16,6 +18,8 @@ import AdminSettingsPage from './components/AdminSettingsPage';
 import UserProfile from './components/UserProfile';
 import { User, Booking } from './types';
 import { ToastProvider } from './components/ui/Toast';
+import authService from './services/auth';
+import { tokenManager } from './services/api';
 
 // Helper component to update document title and handle external script awareness
 const RouteObserver = () => {
@@ -55,7 +59,39 @@ const ProtectedRoute = ({ user, children }: { user: User | null, children: React
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Rehydrate auth state on first mount
+  useEffect(() => {
+    const rehydrate = async () => {
+      try {
+        const storedUser = tokenManager.getUser<User>();
+        const hasToken = !!tokenManager.getAccessToken();
+
+        if (!storedUser || !hasToken) {
+          // Nothing to restore
+          setUser(null);
+          return;
+        }
+
+        // Optimistic set (avoid redirect flicker)
+        setUser(storedUser);
+
+        // Validate token on backend
+        const validatedUser = await authService.getCurrentUser();
+        setUser(validatedUser);
+      } catch (err: any) {
+        // Token invalid/expired or backend unreachable with 401/403
+        tokenManager.clearTokens();
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    rehydrate();
+  }, []);
 
   const handleLogin = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
@@ -63,6 +99,8 @@ const App = () => {
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
+    // Clear persisted auth too
+    tokenManager.clearTokens();
     setUser(null);
     navigate('/');
   }, [navigate]);
@@ -71,12 +109,27 @@ const App = () => {
     navigate('/dashboard/bookings/new', { state: { initialData } });
   }, [navigate]);
 
+  if (isLoading) {
+    return (
+      <ToastProvider>
+        <div className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-900">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-4 border-primary-800 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">Se verifică sesiunea...</p>
+          </div>
+        </div>
+      </ToastProvider>
+    );
+  }
+
   return (
     <ToastProvider>
       <RouteObserver />
       <Routes>
         <Route path="/" element={<LandingPage onLoginRedirect={() => navigate('/login')} />} />
         <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login onLogin={handleLogin} />} />
+        <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPassword />} />
+        <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPassword />} />
         
         <Route 
           path="/dashboard" 

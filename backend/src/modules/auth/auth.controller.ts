@@ -71,4 +71,67 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    const result = await authService.forgotPassword({ email });
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to process request';
+    
+    // Rate limit error
+    if (message.includes('Too many')) {
+      return res.status(429).json({ error: message });
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    // Validate inputs
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Reset token is required' });
+    }
+
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+
+    const result = await authService.resetPassword({ token, newPassword });
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to reset password';
+    
+    // Invalid/expired token
+    if (message.includes('Invalid or expired')) {
+      return res.status(400).json({ error: message });
+    }
+    
+    // Password validation errors
+    if (message.includes('Password must')) {
+      return res.status(400).json({ error: message });
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;

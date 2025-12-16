@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { ReactNode, HTMLAttributes } from 'react';
 import { cn } from '../../lib/utils';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  children?: ReactNode;
+  className?: string;
   variant?: 'default' | 'elevated' | 'outlined' | 'interactive';
 }
 

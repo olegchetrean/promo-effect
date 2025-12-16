@@ -36,19 +36,34 @@ export const tokenManager = {
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   },
 
-  clearTokens: () => {
+  removeTokens: () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+  },
+
+  getUser: <T = unknown,>(): T | null => {
+    const userStr = localStorage.getItem(USER_KEY);
+    if (!userStr) return null;
+
+    try {
+      return JSON.parse(userStr) as T;
+    } catch {
+      return null;
+    }
+  },
+
+  setUser: (user: unknown) => {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
+
+  removeUser: () => {
     localStorage.removeItem(USER_KEY);
   },
 
-  getUser: () => {
-    const userStr = localStorage.getItem(USER_KEY);
-    return userStr ? JSON.parse(userStr) : null;
-  },
-
-  setUser: (user: any) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // Backwards-compatible helper
+  clearTokens: () => {
+    tokenManager.removeTokens();
+    tokenManager.removeUser();
   },
 };
 
@@ -94,8 +109,21 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
+    const requestUrl = originalRequest?.url || '';
+    const isAuthEndpoint = requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/refresh') ||
+      requestUrl.includes('/auth/logout') ||
+      requestUrl.includes('/auth/me');
+
     // If error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // If we got 401 on an auth endpoint, don't try refresh + don't hard-redirect.
+      // Let the caller decide (e.g., App rehydration will clear tokens and render /login).
+      if (isAuthEndpoint) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         // If already refreshing, queue this request
         return new Promise((resolve, reject) => {
@@ -118,9 +146,8 @@ api.interceptors.response.use(
       const refreshToken = tokenManager.getRefreshToken();
 
       if (!refreshToken) {
-        // No refresh token, redirect to login
+        // No refresh token - clear local session, but don't hard redirect here
         tokenManager.clearTokens();
-        window.location.href = '/login';
         return Promise.reject(error);
       }
 
@@ -147,10 +174,9 @@ api.interceptors.response.use(
 
         return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
+        // Refresh failed, clear tokens (no hard redirect)
         processQueue(refreshError, null);
         tokenManager.clearTokens();
-        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

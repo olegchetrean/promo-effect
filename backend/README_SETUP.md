@@ -176,6 +176,32 @@ PORT=3002
 
 ---
 
+##  Production (Supabase Postgres) - Minimal Setup
+
+### 1) Create `.env.production` (DO NOT COMMIT)
+
+Create a new file `backend/.env.production` on your server (or locally for testing) with:
+
+- `DATABASE_URL` - Supabase Postgres connection string (must include SSL)
+  - Example:
+    - `DATABASE_URL="postgresql://postgres:<PASSWORD>@db.<PROJECT_REF>.supabase.co:5432/postgres?schema=public&sslmode=require"`
+
+- `JWT_SECRET` - strong random secret (min 32 chars)
+- `NODE_ENV=production`
+- `PORT=3001` (or your desired port)
+- `FRONTEND_URL=https://<your-frontend-domain>` (used by CORS)
+
+### 2) Apply migrations to Supabase
+
+Point `DATABASE_URL` to Supabase and run:
+- `npx prisma migrate deploy`
+
+### 3) Generate Prisma Client
+
+- `npx prisma generate`
+
+---
+
 ## 📝 NEXT FEATURES TO IMPLEMENT
 
 ### Priority 1: Bookings CRUD

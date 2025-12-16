@@ -1,6 +1,6 @@
 -- CreateTable
 CREATE TABLE "users" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -10,28 +10,31 @@ CREATE TABLE "users" (
     "email_verified" BOOLEAN NOT NULL DEFAULT false,
     "verification_token" TEXT,
     "reset_token" TEXT,
-    "reset_token_expiry" DATETIME,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    "last_login_at" DATETIME
+    "reset_token_expiry" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "last_login_at" TIMESTAMP(3),
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "sessions" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "token" TEXT NOT NULL,
     "refresh_token" TEXT NOT NULL,
-    "expires_at" DATETIME NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
     "ip_address" TEXT,
     "user_agent" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "clients" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "company_name" TEXT NOT NULL,
     "contact_person" TEXT NOT NULL,
     "email" TEXT NOT NULL,
@@ -40,16 +43,18 @@ CREATE TABLE "clients" (
     "tax_id" TEXT,
     "bank_account" TEXT,
     "total_bookings" INTEGER NOT NULL DEFAULT 0,
-    "total_revenue" REAL NOT NULL DEFAULT 0,
+    "total_revenue" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    "last_booking_at" DATETIME
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "last_booking_at" TIMESTAMP(3),
+
+    CONSTRAINT "clients_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "agents" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "agent_code" TEXT NOT NULL,
     "company" TEXT NOT NULL,
@@ -57,46 +62,49 @@ CREATE TABLE "agents" (
     "wechat_id" TEXT,
     "status" TEXT NOT NULL DEFAULT 'ACTIVE',
     "created_by_id" TEXT NOT NULL,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    CONSTRAINT "agents_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "agents_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "agents_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "agent_prices" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "agent_id" TEXT,
     "added_by_admin" TEXT,
-    "freight_price" REAL NOT NULL,
+    "freight_price" DOUBLE PRECISION NOT NULL,
     "shipping_line" TEXT NOT NULL,
     "port_origin" TEXT NOT NULL,
     "container_type" TEXT NOT NULL,
     "weight_range" TEXT NOT NULL,
-    "valid_from" DATETIME NOT NULL,
-    "valid_until" DATETIME NOT NULL,
-    "departure_date" DATETIME NOT NULL,
+    "valid_from" TIMESTAMP(3) NOT NULL,
+    "valid_until" TIMESTAMP(3) NOT NULL,
+    "departure_date" TIMESTAMP(3) NOT NULL,
     "reason" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    CONSTRAINT "agent_prices_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "agents" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "agent_prices_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "admin_settings" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT DEFAULT 1,
-    "port_taxes" REAL NOT NULL DEFAULT 221.67,
-    "customs_taxes" REAL NOT NULL DEFAULT 150.00,
-    "terrestrial_transport" REAL NOT NULL DEFAULT 600.00,
-    "commission" REAL NOT NULL DEFAULT 200.00,
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "port_taxes" DOUBLE PRECISION NOT NULL DEFAULT 221.67,
+    "customs_taxes" DOUBLE PRECISION NOT NULL DEFAULT 150.00,
+    "terrestrial_transport" DOUBLE PRECISION NOT NULL DEFAULT 600.00,
+    "commission" DOUBLE PRECISION NOT NULL DEFAULT 200.00,
     "weight_ranges" TEXT NOT NULL DEFAULT '[{"label": "1-10 tone", "min": 1, "max": 10, "enabled": true}, {"label": "10-20 tone", "min": 10, "max": 20, "enabled": true}, {"label": "20-23 tone", "min": 20, "max": 23, "enabled": true}, {"label": "23-24 tone", "min": 23, "max": 24, "enabled": true}]',
     "updated_by" TEXT,
-    "updated_at" DATETIME NOT NULL
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "admin_settings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "bookings" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "client_id" TEXT NOT NULL,
     "agent_id" TEXT,
     "price_id" TEXT,
@@ -105,69 +113,70 @@ CREATE TABLE "bookings" (
     "container_type" TEXT NOT NULL,
     "cargo_category" TEXT NOT NULL,
     "cargo_weight" TEXT NOT NULL,
-    "cargo_ready_date" DATETIME NOT NULL,
+    "cargo_ready_date" TIMESTAMP(3) NOT NULL,
     "shipping_line" TEXT NOT NULL,
-    "freight_price" REAL NOT NULL,
-    "port_taxes" REAL NOT NULL,
-    "customs_taxes" REAL NOT NULL,
-    "terrestrial_transport" REAL NOT NULL,
-    "commission" REAL NOT NULL,
-    "total_price" REAL NOT NULL,
+    "freight_price" DOUBLE PRECISION NOT NULL,
+    "port_taxes" DOUBLE PRECISION NOT NULL,
+    "customs_taxes" DOUBLE PRECISION NOT NULL,
+    "terrestrial_transport" DOUBLE PRECISION NOT NULL,
+    "commission" DOUBLE PRECISION NOT NULL,
+    "total_price" DOUBLE PRECISION NOT NULL,
     "supplier_name" TEXT,
     "supplier_phone" TEXT,
     "supplier_email" TEXT,
     "supplier_address" TEXT,
     "status" TEXT NOT NULL DEFAULT 'CONFIRMED',
-    "departure_date" DATETIME,
-    "eta" DATETIME,
-    "actual_arrival" DATETIME,
+    "departure_date" TIMESTAMP(3),
+    "eta" TIMESTAMP(3),
+    "actual_arrival" TIMESTAMP(3),
     "internal_notes" TEXT,
     "client_notes" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    CONSTRAINT "bookings_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "bookings_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "agents" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "bookings_price_id_fkey" FOREIGN KEY ("price_id") REFERENCES "agent_prices" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "bookings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "containers" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "booking_id" TEXT NOT NULL,
     "container_number" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "seal_number" TEXT,
     "current_status" TEXT,
     "current_location" TEXT,
-    "current_lat" REAL,
-    "current_lng" REAL,
-    "eta" DATETIME,
-    "actual_arrival" DATETIME,
+    "current_lat" DOUBLE PRECISION,
+    "current_lng" DOUBLE PRECISION,
+    "eta" TIMESTAMP(3),
+    "actual_arrival" TIMESTAMP(3),
     "api_source" TEXT,
-    "last_sync_at" DATETIME,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    CONSTRAINT "containers_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "last_sync_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "containers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "tracking_events" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "container_id" TEXT NOT NULL,
     "event_type" TEXT NOT NULL,
     "location" TEXT NOT NULL,
     "port_name" TEXT,
     "vessel" TEXT,
-    "latitude" REAL,
-    "longitude" REAL,
-    "event_date" DATETIME NOT NULL,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "tracking_events_container_id_fkey" FOREIGN KEY ("container_id") REFERENCES "containers" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "latitude" DOUBLE PRECISION,
+    "longitude" DOUBLE PRECISION,
+    "event_date" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "tracking_events_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "documents" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "booking_id" TEXT,
     "file_name" TEXT NOT NULL,
     "file_type" TEXT NOT NULL,
@@ -177,46 +186,48 @@ CREATE TABLE "documents" (
     "url" TEXT,
     "extracted_data" TEXT,
     "uploaded_by" TEXT NOT NULL,
-    "uploaded_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "documents_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "uploaded_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "documents_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "invoices" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "invoice_number" TEXT NOT NULL,
     "booking_id" TEXT NOT NULL,
     "client_id" TEXT NOT NULL,
-    "amount" REAL NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
-    "issue_date" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "due_date" DATETIME NOT NULL,
-    "paid_date" DATETIME,
+    "issue_date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "due_date" TIMESTAMP(3) NOT NULL,
+    "paid_date" TIMESTAMP(3),
     "status" TEXT NOT NULL DEFAULT 'UNPAID',
     "pdf_url" TEXT,
     "notes" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" DATETIME NOT NULL,
-    CONSTRAINT "invoices_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "invoices_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "payments" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "invoice_id" TEXT NOT NULL,
-    "amount" REAL NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "method" TEXT NOT NULL,
     "reference" TEXT,
-    "paid_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paid_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "notes" TEXT,
-    CONSTRAINT "payments_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoices" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+
+    CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "notifications" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
     "booking_id" TEXT,
     "type" TEXT NOT NULL,
@@ -225,15 +236,15 @@ CREATE TABLE "notifications" (
     "channels" TEXT NOT NULL,
     "read" BOOLEAN NOT NULL DEFAULT false,
     "sent" BOOLEAN NOT NULL DEFAULT false,
-    "sent_at" DATETIME,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "notifications_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "sent_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "email_queue" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "to" TEXT NOT NULL,
     "cc" TEXT NOT NULL DEFAULT '',
     "bcc" TEXT NOT NULL DEFAULT '',
@@ -246,14 +257,16 @@ CREATE TABLE "email_queue" (
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "last_error" TEXT,
-    "scheduled_for" DATETIME,
-    "sent_at" DATETIME,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "scheduled_for" TIMESTAMP(3),
+    "sent_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "email_queue_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "audit_logs" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "user_id" TEXT,
     "action" TEXT NOT NULL,
     "entity_type" TEXT NOT NULL,
@@ -261,23 +274,26 @@ CREATE TABLE "audit_logs" (
     "changes" TEXT,
     "ip_address" TEXT,
     "user_agent" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "background_jobs" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "job_type" TEXT NOT NULL,
     "job_data" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "max_attempts" INTEGER NOT NULL DEFAULT 3,
-    "scheduled_for" DATETIME,
-    "started_at" DATETIME,
-    "completed_at" DATETIME,
+    "scheduled_for" TIMESTAMP(3),
+    "started_at" TIMESTAMP(3),
+    "completed_at" TIMESTAMP(3),
     "last_error" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "background_jobs_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -399,3 +415,51 @@ CREATE INDEX "background_jobs_job_type_idx" ON "background_jobs"("job_type");
 
 -- CreateIndex
 CREATE INDEX "background_jobs_scheduled_for_idx" ON "background_jobs"("scheduled_for");
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "agents" ADD CONSTRAINT "agents_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "agents" ADD CONSTRAINT "agents_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "agent_prices" ADD CONSTRAINT "agent_prices_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_price_id_fkey" FOREIGN KEY ("price_id") REFERENCES "agent_prices"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "containers" ADD CONSTRAINT "containers_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "tracking_events" ADD CONSTRAINT "tracking_events_container_id_fkey" FOREIGN KEY ("container_id") REFERENCES "containers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents" ADD CONSTRAINT "documents_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payments" ADD CONSTRAINT "payments_invoice_id_fkey" FOREIGN KEY ("invoice_id") REFERENCES "invoices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_booking_id_fkey" FOREIGN KEY ("booking_id") REFERENCES "bookings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

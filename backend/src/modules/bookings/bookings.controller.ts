@@ -116,7 +116,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
  * Auth: Required
  * Role: ADMIN, SUPER_ADMIN only
  */
-router.delete('/:id', authMiddleware, requireRole('ADMIN', 'SUPER_ADMIN'), async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, requireRole(['ADMIN', 'SUPER_ADMIN']), async (req: Request, res: Response) => {
   try {
     const result = await bookingsService.delete(req.params.id, req.user!.userId, req.user!.role);
     res.json(result);
