@@ -3,21 +3,26 @@
  * Handles authentication, token refresh, and error handling
  */
 
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, {
+  AxiosInstance,
+  AxiosError,
+  InternalAxiosRequestConfig,
+} from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:3002/api";
 
 // Token storage keys
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-const USER_KEY = 'user';
+const ACCESS_TOKEN_KEY = "access_token";
+const REFRESH_TOKEN_KEY = "refresh_token";
+const USER_KEY = "user";
 
 // Create axios instance
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -41,7 +46,7 @@ export const tokenManager = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
   },
 
-  getUser: <T = unknown,>(): T | null => {
+  getUser: <T = unknown>(): T | null => {
     const userStr = localStorage.getItem(USER_KEY);
     if (!userStr) return null;
 
@@ -109,12 +114,13 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    const requestUrl = originalRequest?.url || '';
-    const isAuthEndpoint = requestUrl.includes('/auth/login') ||
-      requestUrl.includes('/auth/register') ||
-      requestUrl.includes('/auth/refresh') ||
-      requestUrl.includes('/auth/logout') ||
-      requestUrl.includes('/auth/me');
+    const requestUrl = originalRequest?.url || "";
+    const isAuthEndpoint =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/register") ||
+      requestUrl.includes("/auth/refresh") ||
+      requestUrl.includes("/auth/logout") ||
+      requestUrl.includes("/auth/me");
 
     // If error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -189,7 +195,7 @@ api.interceptors.response.use(
       const message =
         (error.response.data as any)?.error ||
         (error.response.data as any)?.message ||
-        'A apărut o eroare pe server';
+        "A apărut o eroare pe server";
 
       return Promise.reject({
         status: error.response.status,
@@ -200,14 +206,15 @@ api.interceptors.response.use(
       // Request made but no response
       return Promise.reject({
         status: 0,
-        message: 'Nu s-a putut conecta la server. Verificați conexiunea la internet.',
+        message:
+          "Nu s-a putut conecta la server. Verificați conexiunea la internet.",
         data: null,
       });
     } else {
       // Something else happened
       return Promise.reject({
         status: 0,
-        message: error.message || 'A apărut o eroare neprevăzută',
+        message: error.message || "A apărut o eroare neprevăzută",
         data: null,
       });
     }
@@ -226,7 +233,7 @@ export const handleApiError = (error: any): string => {
   if (error.message) {
     return error.message;
   }
-  return 'A apărut o eroare neprevăzută';
+  return "A apărut o eroare neprevăzută";
 };
 
 export default api;
