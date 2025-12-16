@@ -1,3 +1,5 @@
+// Load environment variables first, before anything else
+import 'dotenv/config';
 
 import app from './app';
 import { PrismaClient } from '@prisma/client';
