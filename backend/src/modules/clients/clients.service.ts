@@ -3,9 +3,7 @@
  * Handles all client-related database operations
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 // DTOs
 export interface CreateClientDTO {

@@ -11,6 +11,7 @@ import BookingDetail from './components/BookingDetail';
 import TrackingView from './components/TrackingView';
 import PriceCalculator from './components/PriceCalculator';
 import EmailParserAssistant from './components/EmailParserAssistant';
+import AIEmailParser from './components/AIEmailParser';
 import ClientsList from './components/ClientsList';
 import InvoicesList from './components/InvoicesList';
 import ReportsPage from './components/ReportsPage';
@@ -147,6 +148,7 @@ const App = () => {
           <Route path="tracking" element={<TrackingView />} />
           <Route path="calculator" element={<PriceCalculator />} />
           <Route path="emailParser" element={<EmailParserAssistant onBookingCreate={handleNewBooking} />} />
+          <Route path="ai-parser" element={<AIEmailParser />} />
           <Route path="clients" element={<ClientsList />} />
           <Route path="invoices" element={<InvoicesList />} />
           <Route path="reports" element={<ReportsPage />} />

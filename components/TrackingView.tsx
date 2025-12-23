@@ -1,159 +1,714 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Container, TrackingStatus, TrackingEvent } from '../types';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
-import { SearchIcon } from './icons';
+import { 
+  SearchIcon, PackageIcon, TruckIcon, CheckCircleIcon, 
+  ClockIcon, AlertCircleIcon, PlusIcon, MapPinIcon,
+  RefreshCwIcon
+} from './icons';
 import { TrackingTimeline } from './TrackingTimeline';
+import trackingService, {
+  Container,
+  TrackingStats,
+  TrackingEvent,
+  EventType,
+  TrackingEventInput,
+  getStatusLabel,
+} from '../services/tracking';
 
-const mockContainerData: { [key: string]: Container } = {
-    "MSCU1234567": {
-        id: 1,
-        booking_id: 101,
-        container_number: 'MSCU1234567',
-        shipping_line: 'MSC',
-        current_status: TrackingStatus.IN_TRANSIT,
-        current_location: 'Suez Canal',
-        vessel_name: 'MSC Oscar',
-        estimated_arrival_date: '2025-11-15',
-        is_refrigerated: false,
-        is_urgent: false,
-        priority_level: 5,
-        tracking_history: ([
-            { id: 7, title: "Rezervare Confirmată", description: "Rezervare creată în sistem", location: "System", timestamp: "2025-10-05T09:00:00Z", status: 'completed' },
-            { id: 6, title: "Intrare în Terminal", description: "Container recepționat la terminal", location: "Terminal Shanghai", timestamp: "2025-10-08T14:00:00Z", status: 'completed' },
-            { id: 5, title: "Încărcat pe Navă", description: "Container încărcat pe nava MSC Oscar", location: "Portul Shanghai", timestamp: "2025-10-09T10:00:00Z", status: 'completed' },
-            { id: 4, title: "Navă Plecată", description: "Nava a părăsit portul", location: "Portul Shanghai", timestamp: "2025-10-10T18:30:00Z", status: 'completed' },
-            { id: 3, title: "În Tranzit", description: "Nava este în drum", location: "Marea Mediterană", timestamp: "2025-11-05T12:00:00Z", status: 'current' },
-            { id: 2, title: "Sosire Navă", description: "Nava este așteptată să sosească", location: "Portul Constanța", timestamp: "2025-11-14T22:00:00Z", status: 'pending' },
-            { id: 1, title: "Container Descărcat", description: "Containerul va fi descărcat de pe navă", location: "Portul Constanța", timestamp: "2025-11-15T08:00:00Z", status: 'pending' },
-        ] as TrackingEvent[]).reverse()
-    },
-    "TEMU1234567": {
-        id: 2,
-        booking_id: 102,
-        container_number: 'TEMU1234567',
-        shipping_line: 'MSC',
-        current_status: TrackingStatus.IN_TRANSIT,
-        current_location: 'Atlantic Ocean',
-        vessel_name: 'MSC Zoe',
-        estimated_arrival_date: '2025-12-01',
-        is_refrigerated: true,
-        is_urgent: true,
-        priority_level: 1,
-        tracking_history: []
+// ============================================
+// TYPES
+// ============================================
+
+interface TrackingEventForTimeline {
+  id: number;
+  title: string;
+  description: string;
+  location: string;
+  timestamp: string;
+  status: 'completed' | 'current' | 'pending';
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+const statusVariantMap: Record<string, 'blue' | 'yellow' | 'green' | 'red' | 'purple' | 'teal' | 'default'> = {
+  PENDING: 'default',
+  PICKED_UP: 'blue',
+  IN_TRANSIT: 'yellow',
+  AT_PORT: 'purple',
+  CUSTOMS: 'teal',
+  DELIVERED: 'green',
+  DELAYED: 'red',
+  ON_HOLD: 'red',
+  CANCELLED: 'default',
+};
+
+function getEventTypeLabel(eventType: string): string {
+  const labels: Record<string, string> = {
+    BOOKING_CREATED: 'Rezervare creată',
+    PICKED_UP: 'Container ridicat',
+    GATE_IN_ORIGIN: 'Gate In - Origine',
+    LOADED_ON_VESSEL: 'Încărcat pe navă',
+    DEPARTED_ORIGIN: 'Plecare din origine',
+    TRANSHIPMENT_ARRIVAL: 'Sosire transbordare',
+    TRANSHIPMENT_DEPARTURE: 'Plecare transbordare',
+    ARRIVED_DESTINATION: 'Sosire la destinație',
+    DISCHARGED: 'Descărcat',
+    CUSTOMS_CLEARANCE: 'Vămuire',
+    GATE_OUT: 'Gate Out',
+    DELIVERED: 'Livrat',
+    EXCEPTION: 'Excepție',
+    HOLD: 'Suspendat',
+    RELEASED: 'Eliberat',
+  };
+  return labels[eventType] || eventType;
+}
+
+function convertToTimelineEvents(events: TrackingEvent[], currentStatus: string): TrackingEventForTimeline[] {
+  if (!events || events.length === 0) return [];
+
+  // Sort events by date (newest first for display)
+  const sortedEvents = [...events].sort(
+    (a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()
+  );
+
+  const now = new Date();
+  const latestEventIndex = sortedEvents.findIndex(
+    (e) => new Date(e.eventDate) <= now
+  );
+
+  return sortedEvents.map((event, index) => {
+    let status: 'completed' | 'current' | 'pending' = 'pending';
+
+    if (new Date(event.eventDate) < now) {
+      status = index === latestEventIndex ? 'current' : 'completed';
     }
-};
 
-const statusVariantMap: { [key in TrackingStatus]: 'blue' | 'yellow' | 'green' | 'red' | 'purple' | 'teal' | 'default' } = {
-    [TrackingStatus.BOOKED]: 'default',
-    [TrackingStatus.GATE_IN]: 'purple',
-    [TrackingStatus.LOADED]: 'purple',
-    [TrackingStatus.DEPARTED]: 'blue',
-    [TrackingStatus.IN_TRANSIT]: 'yellow',
-    [TrackingStatus.ARRIVED]: 'teal',
-    [TrackingStatus.DISCHARGED]: 'teal',
-    [TrackingStatus.GATE_OUT]: 'green',
-    [TrackingStatus.DELIVERED]: 'green',
-};
-
-const TrackingView = () => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [containerNumber, setContainerNumber] = useState(searchParams.get('container') || '');
-    const [trackingData, setTrackingData] = useState<Container | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-
-    const performTracking = (number: string) => {
-        setIsLoading(true);
-        setError('');
-        setTrackingData(null);
-
-        setTimeout(() => {
-            const data = mockContainerData[number.toUpperCase()];
-            if (data) {
-                setTrackingData(data);
-            } else {
-                setError(`Containerul "${number}" nu a fost găsit.`);
-            }
-            setIsLoading(false);
-        }, 800);
+    return {
+      id: parseInt(event.id) || index + 1,
+      title: getEventTypeLabel(event.eventType),
+      description: event.notes || `${event.eventType} - ${event.location}`,
+      location: event.portName || event.location,
+      timestamp: event.eventDate,
+      status,
     };
+  });
+}
 
-    useEffect(() => {
-        const queryContainer = searchParams.get('container');
-        if (queryContainer) {
-            setContainerNumber(queryContainer);
-            performTracking(queryContainer);
-        }
-    }, [searchParams]);
+// ============================================
+// ADD EVENT MODAL COMPONENT
+// ============================================
 
-    const handleTrack = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!containerNumber) {
-            setError('Vă rugăm să introduceți un număr de container.');
-            return;
-        }
-        setSearchParams({ container: containerNumber });
-        // useEffect will trigger tracking
-    };
+interface AddEventModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  containerId: string;
+  containerNumber: string;
+  eventTypes: EventType[];
+  onEventAdded: () => void;
+}
 
-    return (
-        <div className="space-y-5">
-            <div>
-                <h3 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100">Urmărire Container</h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Introduceți numărul containerului pentru a vedea călătoria detaliată.</p>
-            </div>
-            
-            <Card>
-                <form onSubmit={handleTrack} className="flex flex-col sm:flex-row gap-4">
-                    <Input
-                        type="text"
-                        value={containerNumber}
-                        onChange={(e) => setContainerNumber(e.target.value)}
-                        placeholder="ex., MSCU1234567"
-                        className="flex-grow w-full font-mono uppercase"
-                    />
-                    <Button type="submit" disabled={isLoading} loading={isLoading} className="sm:w-32">
-                        <SearchIcon className="mr-2 h-4 w-4" />
-                        Urmărește
-                    </Button>
-                </form>
-            </Card>
+const AddEventModal: React.FC<AddEventModalProps> = ({
+  isOpen,
+  onClose,
+  containerId,
+  containerNumber,
+  eventTypes,
+  onEventAdded,
+}) => {
+  const [formData, setFormData] = useState<TrackingEventInput>({
+    eventType: '',
+    eventDate: new Date().toISOString().slice(0, 16),
+    location: '',
+    portName: '',
+    vessel: '',
+    notes: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-            {error && <div className="bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">{error}</div>}
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-            {trackingData && (
-                 <Card>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-b border-neutral-200 dark:border-neutral-700 pb-4 mb-4">
-                        <div>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Nr. Container</p>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100 font-mono">{trackingData.container_number}</p>
-                        </div>
-                         <div>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Linie Maritimă</p>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{trackingData.shipping_line}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Stare Curentă</p>
-                            <Badge variant={statusVariantMap[trackingData.current_status]}>{trackingData.current_status}</Badge>
-                        </div>
-                         <div>
-                            <p className="text-xs text-neutral-500 dark:text-neutral-400">ETA</p>
-                            <p className="font-semibold text-neutral-800 dark:text-neutral-100">{trackingData.estimated_arrival_date}</p>
-                        </div>
-                    </div>
+    try {
+      await trackingService.addTrackingEvent(containerId, formData);
+      onEventAdded();
+      onClose();
+      setFormData({
+        eventType: '',
+        eventDate: new Date().toISOString().slice(0, 16),
+        location: '',
+        portName: '',
+        vessel: '',
+        notes: '',
+      });
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Eroare la adăugarea evenimentului');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                    <div>
-                        <h4 className="text-lg font-semibold text-neutral-700 dark:text-neutral-200 mb-5">Istoric Urmărire</h4>
-                        <TrackingTimeline events={trackingData.tracking_history} />
-                    </div>
-                </Card>
-            )}
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-neutral-800 rounded-xl shadow-xl w-full max-w-lg">
+        <div className="p-6 border-b border-neutral-200 dark:border-neutral-700">
+          <h3 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
+            Adaugă Eveniment - {containerNumber}
+          </h3>
         </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Tip Eveniment *
+            </label>
+            <select
+              value={formData.eventType}
+              onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
+              className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-primary-500"
+              required
+            >
+              <option value="">Selectează tipul</option>
+              {eventTypes.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Data și Ora *
+            </label>
+            <Input
+              type="datetime-local"
+              value={formData.eventDate}
+              onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Locație *
+            </label>
+            <Input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="ex., Portul Shanghai"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Nume Port
+              </label>
+              <Input
+                type="text"
+                value={formData.portName || ''}
+                onChange={(e) => setFormData({ ...formData, portName: e.target.value })}
+                placeholder="ex., Shanghai"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Navă
+              </label>
+              <Input
+                type="text"
+                value={formData.vessel || ''}
+                onChange={(e) => setFormData({ ...formData, vessel: e.target.value })}
+                placeholder="ex., MSC Oscar"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              Note
+            </label>
+            <textarea
+              value={formData.notes || ''}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 focus:ring-2 focus:ring-primary-500 min-h-[80px]"
+              placeholder="Detalii suplimentare..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Anulează
+            </Button>
+            <Button type="submit" loading={loading} disabled={loading}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Adaugă Eveniment
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// STATS CARDS COMPONENT
+// ============================================
+
+interface StatsCardsProps {
+  stats: TrackingStats | null;
+  loading: boolean;
+}
+
+const StatsCards: React.FC<StatsCardsProps> = ({ stats, loading }) => {
+  const statItems = [
+    {
+      label: 'Total Containere',
+      value: stats?.totalContainers || 0,
+      icon: PackageIcon,
+      color: 'text-blue-600 dark:text-blue-400',
+      bg: 'bg-blue-100 dark:bg-blue-900/30',
+    },
+    {
+      label: 'În Tranzit',
+      value: stats?.inTransit || 0,
+      icon: TruckIcon,
+      color: 'text-yellow-600 dark:text-yellow-400',
+      bg: 'bg-yellow-100 dark:bg-yellow-900/30',
+    },
+    {
+      label: 'Livrate',
+      value: stats?.delivered || 0,
+      icon: CheckCircleIcon,
+      color: 'text-green-600 dark:text-green-400',
+      bg: 'bg-green-100 dark:bg-green-900/30',
+    },
+    {
+      label: 'Întârziate',
+      value: stats?.delayed || 0,
+      icon: AlertCircleIcon,
+      color: 'text-red-600 dark:text-red-400',
+      bg: 'bg-red-100 dark:bg-red-900/30',
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="animate-pulse bg-neutral-200 dark:bg-neutral-700 rounded-xl h-24" />
+        ))}
+      </div>
     );
+  }
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {statItems.map((item) => (
+        <div key={item.label}>
+          <Card className="p-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${item.bg}`}>
+                <item.icon className={`h-5 w-5 ${item.color}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-neutral-800 dark:text-neutral-100">
+                  {item.value}
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">{item.label}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================
+// RECENT CONTAINERS LIST
+// ============================================
+
+interface RecentContainersProps {
+  containers: Container[];
+  onSelect: (containerNumber: string) => void;
+  loading: boolean;
+}
+
+const RecentContainers: React.FC<RecentContainersProps> = ({ containers, onSelect, loading }) => {
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-16 bg-neutral-200 dark:bg-neutral-700 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (containers.length === 0) {
+    return (
+      <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+        <PackageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+        <p>Nu există containere de afișat</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {containers.slice(0, 5).map((container) => (
+        <div
+          key={container.id}
+          className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-neutral-700/50 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer transition-colors"
+          onClick={() => onSelect(container.containerNumber)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+              <PackageIcon className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+            </div>
+            <div>
+              <p className="font-mono font-medium text-neutral-800 dark:text-neutral-100">
+                {container.containerNumber}
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                {container.booking?.bookingNumber || 'N/A'} • {container.currentLocation || 'Necunoscut'}
+              </p>
+            </div>
+          </div>
+          <Badge variant={statusVariantMap[container.currentStatus] || 'default'}>
+            {getStatusLabel(container.currentStatus)}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================
+// MAIN TRACKING VIEW COMPONENT
+// ============================================
+
+const TrackingView: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [containerNumber, setContainerNumber] = useState(searchParams.get('container') || '');
+  const [trackingData, setTrackingData] = useState<Container | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Stats and list states
+  const [stats, setStats] = useState<TrackingStats | null>(null);
+  const [recentContainers, setRecentContainers] = useState<Container[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+
+  // Event types for modal
+  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+
+  // Load initial data
+  const loadInitialData = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      setListLoading(true);
+
+      const [statsData, containersData, typesData] = await Promise.all([
+        trackingService.getTrackingStats(),
+        trackingService.getContainers({ limit: 10 }),
+        trackingService.getEventTypes(),
+      ]);
+
+      setStats(statsData);
+      setRecentContainers(containersData.containers);
+      setEventTypes(typesData);
+    } catch (err) {
+      console.error('Failed to load tracking data:', err);
+    } finally {
+      setStatsLoading(false);
+      setListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Search container
+  const performTracking = async (number: string) => {
+    if (!number.trim()) {
+      setError('Vă rugăm să introduceți un număr de container.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setTrackingData(null);
+
+    try {
+      const data = await trackingService.searchContainer(number.trim().toUpperCase());
+      setTrackingData(data);
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        setError(`Containerul "${number}" nu a fost găsit în baza de date.`);
+      } else if (err.response?.status === 403) {
+        setError('Nu aveți permisiunea de a vizualiza acest container.');
+      } else {
+        setError(err.response?.data?.error || 'Eroare la căutarea containerului.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle URL params
+  useEffect(() => {
+    const queryContainer = searchParams.get('container');
+    if (queryContainer) {
+      setContainerNumber(queryContainer);
+      performTracking(queryContainer);
+    }
+  }, [searchParams]);
+
+  const handleTrack = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!containerNumber.trim()) {
+      setError('Vă rugăm să introduceți un număr de container.');
+      return;
+    }
+    setSearchParams({ container: containerNumber.trim().toUpperCase() });
+  };
+
+  const handleContainerSelect = (number: string) => {
+    setContainerNumber(number);
+    setSearchParams({ container: number });
+  };
+
+  const handleRefresh = () => {
+    if (trackingData) {
+      performTracking(trackingData.containerNumber);
+    }
+    loadInitialData();
+  };
+
+  const handleEventAdded = () => {
+    if (trackingData) {
+      performTracking(trackingData.containerNumber);
+    }
+    loadInitialData();
+  };
+
+  // Convert tracking events to timeline format
+  const timelineEvents = trackingData?.trackingEvents
+    ? convertToTimelineEvents(trackingData.trackingEvents, trackingData.currentStatus)
+    : [];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h3 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100">
+            Urmărire Container
+          </h3>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+            Monitorizați statusul și poziția containerelor în timp real
+          </p>
+        </div>
+        <Button variant="outline" onClick={handleRefresh}>
+          <RefreshCwIcon className="h-4 w-4 mr-2" />
+          Actualizează
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <StatsCards stats={stats} loading={statsLoading} />
+
+      {/* Search and Results */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Search Card */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <h4 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100 mb-4">
+              Caută Container
+            </h4>
+            <form onSubmit={handleTrack} className="flex flex-col sm:flex-row gap-4">
+              <Input
+                type="text"
+                value={containerNumber}
+                onChange={(e) => setContainerNumber(e.target.value.toUpperCase())}
+                placeholder="ex., MSCU1234567"
+                className="flex-grow font-mono uppercase"
+              />
+              <Button type="submit" disabled={isLoading} loading={isLoading} className="sm:w-36">
+                <SearchIcon className="mr-2 h-4 w-4" />
+                Urmărește
+              </Button>
+            </form>
+          </Card>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-4 rounded-lg flex items-center gap-3">
+              <AlertCircleIcon className="h-5 w-5 flex-shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <Card className="animate-pulse">
+              <div className="h-32 bg-neutral-200 dark:bg-neutral-700 rounded-lg" />
+            </Card>
+          )}
+
+          {/* Tracking Result */}
+          {trackingData && !isLoading && (
+            <Card>
+              {/* Container Info Header */}
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-700 pb-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+                  <div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Nr. Container</p>
+                    <p className="font-semibold text-neutral-800 dark:text-neutral-100 font-mono">
+                      {trackingData.containerNumber}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Tip</p>
+                    <p className="font-semibold text-neutral-800 dark:text-neutral-100">
+                      {trackingData.type || 'Standard'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">Stare Curentă</p>
+                    <Badge variant={statusVariantMap[trackingData.currentStatus] || 'default'}>
+                      {getStatusLabel(trackingData.currentStatus)}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">ETA</p>
+                    <p className="font-semibold text-neutral-800 dark:text-neutral-100">
+                      {trackingData.eta
+                        ? new Date(trackingData.eta).toLocaleDateString('ro-RO')
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddEventModal(true)}
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Adaugă Eveniment
+                </Button>
+              </div>
+
+              {/* Additional Info */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Booking</p>
+                  <p className="font-medium text-neutral-800 dark:text-neutral-100">
+                    {trackingData.booking?.bookingNumber || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Client</p>
+                  <p className="font-medium text-neutral-800 dark:text-neutral-100">
+                    {trackingData.booking?.client?.name || 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Rută</p>
+                  <p className="font-medium text-neutral-800 dark:text-neutral-100">
+                    {trackingData.booking
+                      ? `${trackingData.booking.origin} → ${trackingData.booking.destination}`
+                      : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">Locație Curentă</p>
+                  <p className="font-medium text-neutral-800 dark:text-neutral-100 flex items-center gap-1">
+                    <MapPinIcon className="h-4 w-4 text-red-500" />
+                    {trackingData.currentLocation || 'Necunoscută'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div>
+                <h4 className="text-lg font-semibold text-neutral-700 dark:text-neutral-200 mb-5">
+                  Istoric Urmărire
+                </h4>
+                {timelineEvents.length > 0 ? (
+                  <TrackingTimeline events={timelineEvents} />
+                ) : (
+                  <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
+                    <ClockIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Nu există evenimente de urmărire înregistrate</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => setShowAddEventModal(true)}
+                    >
+                      <PlusIcon className="h-4 w-4 mr-2" />
+                      Adaugă primul eveniment
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* Recent Containers Sidebar */}
+        <div className="lg:col-span-1">
+          <Card>
+            <h4 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100 mb-4">
+              Containere Recente
+            </h4>
+            <RecentContainers
+              containers={recentContainers}
+              onSelect={handleContainerSelect}
+              loading={listLoading}
+            />
+          </Card>
+        </div>
+      </div>
+
+      {/* Add Event Modal */}
+      {trackingData && (
+        <AddEventModal
+          isOpen={showAddEventModal}
+          onClose={() => setShowAddEventModal(false)}
+          containerId={trackingData.id}
+          containerNumber={trackingData.containerNumber}
+          eventTypes={eventTypes}
+          onEventAdded={handleEventAdded}
+        />
+      )}
+    </div>
+  );
 };
 
 export default TrackingView;

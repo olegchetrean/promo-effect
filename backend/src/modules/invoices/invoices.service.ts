@@ -1,8 +1,7 @@
-import { PrismaClient, Invoice, Payment } from '@prisma/client';
+import { Invoice, Payment } from '@prisma/client';
+import prisma from '../../lib/prisma';
 import { generateInvoiceNumber } from '../../utils/invoiceNumber';
 import { generateInvoicePDF } from '../../services/pdf.service';
-
-const prisma = new PrismaClient();
 
 // VAT rate for Moldova
 const VAT_RATE = 0.19;

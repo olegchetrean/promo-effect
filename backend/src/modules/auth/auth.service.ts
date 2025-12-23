@@ -1,9 +1,7 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../lib/prisma';
 import { generateAccessToken, generateRefreshToken } from '../../utils/jwt.util';
-
-const prisma = new PrismaClient();
 
 // Rate limiting storage (in production, use Redis)
 const resetAttempts = new Map<string, { count: number; lastAttempt: Date }>();

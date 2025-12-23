@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { User, UserRole, Booking } from '../types';
 import { cn } from '../lib/utils';
-import { LayoutDashboardIcon, PackageIcon, ShipIcon, UsersIcon, FileTextIcon, BarChartIcon, SettingsIcon, CalculatorIcon, MailIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, BellIcon, SunIcon, MoonIcon, PlusIcon, LogOutIcon, MoreHorizontalIcon, UserIcon } from './icons';
+import { LayoutDashboardIcon, PackageIcon, ShipIcon, UsersIcon, FileTextIcon, BarChartIcon, SettingsIcon, CalculatorIcon, MailIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, BellIcon, SunIcon, MoonIcon, PlusIcon, LogOutIcon, MoreHorizontalIcon, UserIcon } from './icons';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -59,7 +59,7 @@ const DashboardLayout = ({ children, user, onLogout, onNewBooking }: DashboardLa
     { name: 'Profilul Meu', path: 'userProfile', icon: UserIcon, visible: true },
     { name: 'Clienți', path: 'clients', icon: UsersIcon, visible: isAdminOrManager },
     { name: 'Facturi', path: 'invoices', icon: FileTextIcon, visible: isAdminOrManager },
-    { name: 'Asistent AI Email', path: 'emailParser', icon: MailIcon, visible: isAdminOrManager },
+    { name: 'AI Email Parser', path: 'ai-parser', icon: SparklesIcon, visible: isAdminOrManager },
     { name: 'Rapoarte', path: 'reports', icon: BarChartIcon, visible: isAdminOrManager },
     { name: 'Setări Admin', path: 'adminSettings', icon: SettingsIcon, visible: isAdmin },
   ];

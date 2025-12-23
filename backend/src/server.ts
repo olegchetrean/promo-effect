@@ -1,13 +1,10 @@
-// Load environment variables first, before anything else
-import 'dotenv/config';
 
 import app from './app';
-import { PrismaClient } from '@prisma/client';
+import prisma from './lib/prisma';
 // FIX: Import exit from process to avoid type conflicts with DOM Process type.
 import { exit } from 'process';
 
 const PORT = process.env.PORT || 4000;
-const prisma = new PrismaClient();
 
 async function startServer() {
   try {

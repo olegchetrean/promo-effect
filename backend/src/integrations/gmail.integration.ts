@@ -14,10 +14,8 @@
  *    - GMAIL_REDIRECT_URI
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { ParsedEmail, EmailAttachment } from '../modules/emails/email.service';
-
-const prisma = new PrismaClient();
 
 // ===== GMAIL TYPES =====
 
@@ -165,32 +163,89 @@ export class GmailIntegration {
    * Save tokens to database (admin_settings)
    */
   private async saveTokens(tokens: GmailTokens): Promise<void> {
-    await prisma.adminSettings.updateMany({
+    // Get user info from Gmail API to store email
+    const userInfo = await this.getUserInfo(tokens.accessToken);
+
+    await prisma.adminSettings.upsert({
       where: { id: 1 },
-      data: {
-        // Store tokens as JSON in a field or separate table
-        // For now, we'll use the existing structure
+      update: {
+        gmailAccessToken: tokens.accessToken,
+        gmailRefreshToken: tokens.refreshToken,
+        gmailTokenExpiry: tokens.expiresAt,
+        gmailEmail: userInfo.emailAddress,
         updatedAt: new Date(),
+      },
+      create: {
+        id: 1,
+        gmailAccessToken: tokens.accessToken,
+        gmailRefreshToken: tokens.refreshToken,
+        gmailTokenExpiry: tokens.expiresAt,
+        gmailEmail: userInfo.emailAddress,
       },
     });
 
-    // In production, store in secure settings table:
-    // await prisma.secureSettings.upsert({
-    //   where: { key: 'gmail_tokens' },
-    //   update: { value: JSON.stringify(tokens) },
-    //   create: { key: 'gmail_tokens', value: JSON.stringify(tokens) }
-    // });
+    console.log('Gmail tokens saved to database');
+  }
 
-    console.log('Gmail tokens saved');
+  /**
+   * Get Gmail user info
+   */
+  private async getUserInfo(accessToken: string): Promise<{ emailAddress: string }> {
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get user info');
+    }
+
+    return await response.json();
   }
 
   /**
    * Get saved tokens
    */
   async getTokens(): Promise<GmailTokens | null> {
-    // In production, fetch from secure storage
-    // For demo, return null (not connected)
-    return null;
+    const settings = await prisma.adminSettings.findUnique({
+      where: { id: 1 },
+    });
+
+    if (!settings?.gmailAccessToken || !settings?.gmailRefreshToken) {
+      return null;
+    }
+
+    return {
+      accessToken: settings.gmailAccessToken,
+      refreshToken: settings.gmailRefreshToken,
+      expiresAt: settings.gmailTokenExpiry || new Date(),
+    };
+  }
+
+  /**
+   * Get Gmail connection status
+   */
+  async getStatus(): Promise<{
+    connected: boolean;
+    email?: string;
+    tokenExpiry?: Date;
+    lastFetch?: Date;
+  }> {
+    const settings = await prisma.adminSettings.findUnique({
+      where: { id: 1 },
+    });
+
+    if (!settings?.gmailAccessToken) {
+      return { connected: false };
+    }
+
+    return {
+      connected: true,
+      email: settings.gmailEmail || undefined,
+      tokenExpiry: settings.gmailTokenExpiry || undefined,
+      lastFetch: settings.lastEmailFetchAt || undefined,
+    };
   }
 
   /**
@@ -329,46 +384,14 @@ export class GmailIntegration {
         }),
       }
     );
-  }
 
-  /**
-   * Get Gmail connection status
-   */
-  async getStatus(): Promise<{
-    connected: boolean;
-    email?: string;
-    lastSync?: Date;
-  }> {
-    try {
-      const tokens = await this.getTokens();
-      if (!tokens) {
-        return { connected: false };
-      }
-
-      const accessToken = await this.getValidAccessToken();
-
-      // Get user profile
-      const response = await fetch(
-        'https://gmail.googleapis.com/gmail/v1/users/me/profile',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const profile = await response.json();
-        return {
-          connected: true,
-          email: profile.emailAddress,
-        };
-      }
-
-      return { connected: false };
-    } catch {
-      return { connected: false };
-    }
+    // Update last fetch time
+    await prisma.adminSettings.updateMany({
+      where: { id: 1 },
+      data: {
+        lastEmailFetchAt: new Date(),
+      },
+    });
   }
 }
 

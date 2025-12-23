@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
-import { parseEmailWithGemini } from '../services/geminiService';
+import React, { useState, useEffect } from 'react';
+import { parseEmailWithGemini, checkAIStatus } from '../services/geminiService';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { SparklesIcon, PlusIcon } from './icons';
+import { SparklesIcon, PlusIcon, AlertCircleIcon } from './icons';
 import { Booking } from '../types';
 
 const sampleEmail = `Subject: Shipment Update - Container MSCU1234567
@@ -37,6 +37,12 @@ const EmailParserAssistant = ({ onBookingCreate }: EmailParserAssistantProps) =>
     const [parsedObject, setParsedObject] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [aiStatus, setAiStatus] = useState<{ available: boolean; reason: string } | null>(null);
+
+    // Check AI status on mount
+    useEffect(() => {
+        checkAIStatus().then(setAiStatus);
+    }, []);
 
     const handleParse = async () => {
         if (!emailContent.trim()) {
@@ -84,6 +90,17 @@ const EmailParserAssistant = ({ onBookingCreate }: EmailParserAssistantProps) =>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Lipiți un email de la un partener pentru a extrage automat informațiile cheie.</p>
             </div>
 
+            {/* AI Status Warning */}
+            {aiStatus && !aiStatus.available && (
+                <div className="bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 p-4 rounded-lg flex items-center gap-3">
+                    <AlertCircleIcon className="h-5 w-5 flex-shrink-0" />
+                    <div>
+                        <p className="font-medium">Serviciul AI nu este disponibil</p>
+                        <p className="text-sm">{aiStatus.reason}</p>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="flex flex-col">
                     <div className="flex justify-between items-center mb-2">
@@ -100,7 +117,7 @@ const EmailParserAssistant = ({ onBookingCreate }: EmailParserAssistantProps) =>
                         onChange={(e) => setEmailContent(e.target.value)}
                         rows={15}
                     ></textarea>
-                     <Button onClick={handleParse} disabled={isLoading} loading={isLoading} className="w-full mt-4">
+                     <Button onClick={handleParse} disabled={isLoading || (aiStatus && !aiStatus.available)} loading={isLoading} className="w-full mt-4">
                          <SparklesIcon className="mr-2 h-4 w-4" />
                          Analizează cu AI
                      </Button>

@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../lib/prisma';
 import { generateBookingId } from '../../utils/booking-id.util';
 import { CreateBookingDTO, UpdateBookingDTO, BookingFilters } from '../../types/booking.types';
-
-const prisma = new PrismaClient();
 
 export class BookingsService {
   /**

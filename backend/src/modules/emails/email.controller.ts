@@ -15,7 +15,43 @@ import { authMiddleware, requireRole } from '../../middleware/auth.middleware';
 
 const router = Router();
 
-// All routes require authentication
+/**
+ * GET /api/admin/gmail/callback
+ *
+ * Gmail OAuth callback - exchanges code for tokens
+ * NOTE: This endpoint is PUBLIC (no auth required) because it's called by Google OAuth redirect
+ * MUST be defined BEFORE authMiddleware to remain public
+ */
+router.get('/gmail/callback', async (req: Request, res: Response) => {
+  try {
+    const { code, error } = req.query;
+
+    if (error) {
+      return res.status(400).json({
+        error: 'Authorization denied',
+        details: error
+      });
+    }
+
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Authorization code required' });
+    }
+
+    const tokens = await gmailIntegration.exchangeCodeForTokens(code);
+
+    // In production, redirect to frontend with success message
+    return res.json({
+      success: true,
+      message: 'Gmail connected successfully!',
+      expiresAt: tokens.expiresAt
+    });
+  } catch (error: any) {
+    console.error('Gmail callback error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// All OTHER routes require authentication
 router.use(authMiddleware);
 
 /**
@@ -41,40 +77,6 @@ router.get('/gmail/auth', requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: Req
     });
   } catch (error: any) {
     console.error('Gmail auth error:', error);
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/admin/gmail/callback
- *
- * Gmail OAuth callback - exchanges code for tokens
- */
-router.get('/gmail/callback', requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: Request, res: Response) => {
-  try {
-    const { code, error } = req.query;
-
-    if (error) {
-      return res.status(400).json({
-        error: 'Authorization denied',
-        details: error
-      });
-    }
-
-    if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: 'Authorization code required' });
-    }
-
-    const tokens = await gmailIntegration.exchangeCodeForTokens(code);
-
-    // In production, redirect to frontend with success message
-    return res.json({
-      success: true,
-      message: 'Gmail connected successfully!',
-      expiresAt: tokens.expiresAt
-    });
-  } catch (error: any) {
-    console.error('Gmail callback error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -129,6 +131,41 @@ router.post('/emails/fetch', requireRole(['SUPER_ADMIN', 'ADMIN']), async (req: 
     });
   } catch (error: any) {
     console.error('Email fetch error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/admin/emails
+ *
+ * Get list of incoming emails with optional filtering
+ * Query params:
+ *   - status: PENDING | PROCESSING | PROCESSED | FAILED
+ *   - limit: number of emails to return (default: 50, max: 200)
+ *   - offset: pagination offset (default: 0)
+ */
+router.get('/emails', requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: Request, res: Response) => {
+  try {
+    const { status, limit = '50', offset = '0' } = req.query;
+
+    const limitNum = Math.min(parseInt(limit as string) || 50, 200);
+    const offsetNum = parseInt(offset as string) || 0;
+
+    const emails = await emailService.getIncomingEmails({
+      status: status as string | undefined,
+      limit: limitNum,
+      offset: offsetNum
+    });
+
+    return res.json({
+      success: true,
+      count: emails.length,
+      limit: limitNum,
+      offset: offsetNum,
+      emails
+    });
+  } catch (error: any) {
+    console.error('Get emails error:', error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -275,6 +312,98 @@ router.get('/stats', requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (re
   } catch (error: any) {
     console.error('Email stats error:', error);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/emails/parse-with-ai
+ *
+ * Parse email content using Gemini AI
+ * Returns extracted shipping/logistics data
+ */
+router.post('/parse-with-ai', requireRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR']), async (req: Request, res: Response) => {
+  try {
+    const { emailContent } = req.body;
+
+    if (!emailContent || typeof emailContent !== 'string') {
+      return res.status(400).json({
+        error: 'Email content is required',
+        message: 'Please provide emailContent in the request body'
+      });
+    }
+
+    // Dynamic import to avoid issues if package not installed
+    let geminiService;
+    try {
+      geminiService = await import('../../services/gemini.service');
+    } catch (importError) {
+      return res.status(503).json({
+        error: 'AI service not available',
+        message: 'Gemini AI service is not configured. Please install @google/generative-ai package.'
+      });
+    }
+
+    // Check if Gemini is configured
+    if (!geminiService.isGeminiConfigured()) {
+      return res.status(503).json({
+        error: 'AI service not configured',
+        message: 'GEMINI_API_KEY is not set in backend environment variables.'
+      });
+    }
+
+    // Parse email with Gemini
+    const result = await geminiService.parseEmailWithGemini(emailContent);
+
+    if (result.error) {
+      return res.status(422).json({
+        success: false,
+        error: result.error,
+        confidence: result.confidence || 0
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: result,
+      confidence: result.confidence || 75
+    });
+  } catch (error: any) {
+    console.error('AI parse error:', error);
+    return res.status(500).json({ 
+      error: 'AI parsing failed',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/emails/ai-status
+ *
+ * Check if Gemini AI parsing is available
+ */
+router.get('/ai-status', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    let geminiService;
+    try {
+      geminiService = await import('../../services/gemini.service');
+    } catch (importError) {
+      return res.json({
+        available: false,
+        reason: 'Gemini AI package not installed'
+      });
+    }
+
+    return res.json({
+      available: geminiService.isGeminiConfigured(),
+      reason: geminiService.isGeminiConfigured() 
+        ? 'Gemini AI is ready' 
+        : 'GEMINI_API_KEY not configured in backend'
+    });
+  } catch (error: any) {
+    return res.json({
+      available: false,
+      reason: error.message
+    });
   }
 });
 

@@ -10,9 +10,7 @@
  * Saves Ion 10 hours/week!
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 // ===== EMAIL PARSING TYPES =====
 
@@ -566,7 +564,7 @@ Respond ONLY with valid JSON, no explanations:
    * Save raw email to queue for processing
    */
   async queueEmailForProcessing(email: ParsedEmail): Promise<void> {
-    await prisma.emailQueue.create({
+    await prisma.incomingEmail.create({
       data: {
         messageId: email.id,
         fromAddress: email.from,
@@ -579,12 +577,46 @@ Respond ONLY with valid JSON, no explanations:
   }
 
   /**
+   * Get incoming emails with filtering and pagination
+   */
+  async getIncomingEmails(options: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<any[]> {
+    const { status, limit = 50, offset = 0 } = options;
+
+    const where = status ? { status } : {};
+
+    const emails = await prisma.incomingEmail.findMany({
+      where,
+      orderBy: { receivedAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+
+    return emails.map(email => ({
+      id: email.id,
+      messageId: email.messageId,
+      from: email.fromAddress,
+      subject: email.subject,
+      body: email.body.substring(0, 500) + (email.body.length > 500 ? '...' : ''), // Preview only
+      receivedAt: email.receivedAt,
+      status: email.status,
+      processedAt: email.processedAt,
+      bookingId: email.bookingId,
+      extractedData: email.extractedData ? JSON.parse(email.extractedData) : null,
+      createdAt: email.createdAt,
+    }));
+  }
+
+  /**
    * Get pending emails from queue
    */
   async getPendingEmails(): Promise<ParsedEmail[]> {
-    const queued = await prisma.emailQueue.findMany({
+    const queued = await prisma.incomingEmail.findMany({
       where: { status: 'PENDING' },
-      orderBy: { receivedAt: 'asc' },
+      orderBy: { receivedAt: 'desc' },
       take: 10,
     });
 
@@ -602,12 +634,11 @@ Respond ONLY with valid JSON, no explanations:
    * Mark email as processed in queue
    */
   async markEmailProcessed(messageId: string, status: 'PROCESSED' | 'FAILED', error?: string): Promise<void> {
-    await prisma.emailQueue.update({
+    await prisma.incomingEmail.update({
       where: { messageId },
       data: {
         status,
         processedAt: new Date(),
-        error,
       },
     });
   }

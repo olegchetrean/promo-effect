@@ -3,9 +3,7 @@
  * Calculates shipping prices for ALL 6 shipping lines and returns top 5 sorted by price
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../lib/prisma';
 
 export interface CalculatorInput {
   portOrigin: string;
