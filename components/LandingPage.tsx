@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { MailIcon, SearchIcon, DollarSignIcon, FileTextIcon, CalculatorIcon, ShipIcon, BellIcon, LayoutDashboardIcon, CheckIcon, ClockIcon, HeadsetIcon, ArchiveIcon, SyncIcon, StarIcon, ChevronDownIcon, UserCheckIcon, GlobeIcon, FacebookIcon, LinkedinIcon, TwitterIcon } from './icons';
@@ -71,7 +72,7 @@ const LandingPage = ({ onLoginRedirect }: LandingPageProps) => {
         
         <header className="w-full absolute top-0 left-0 z-10 p-4">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
-                <PromoEffectLogo />
+                <Link to='/'><PromoEffectLogo /></Link>
                 <nav className="hidden md:flex items-center gap-6 text-sm text-white">
                     {navLinks.map(link => <a key={link} href="#" className="hover:text-primary-400 transition-colors">{link}</a>)}
                 </nav>
@@ -265,28 +266,59 @@ const LandingPage = ({ onLoginRedirect }: LandingPageProps) => {
           </div>
       </section>
 
-      <section className="bg-white dark:bg-neutral-800 py-20">
+    <section className="bg-white dark:bg-neutral-800 py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-                <h2 className="font-heading text-3xl font-bold">Întrebări Frecvente</h2>
+            <h2 className="font-heading text-3xl font-bold">Întrebări Frecvente</h2>
             </div>
             <div className="space-y-4">
-                {faqs.map((faq, index) => (
-                    <div key={index} className="border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                        <button onClick={() => setOpenFaq(openFaq === index ? null : index)} className="w-full flex justify-between items-center p-5 text-left font-semibold">
-                            <span>{faq.q}</span>
-                            <ChevronDownIcon className={`h-5 w-5 transform transition-transform ${openFaq === index ? 'rotate-180' : ''}`} />
-                        </button>
-                        {openFaq === index && (
-                            <div className="p-5 pt-0 text-neutral-600 dark:text-neutral-400">
-                                {faq.a}
-                            </div>
-                        )}
+            {faqs.map((faq, index) => (
+                <div 
+                key={index} 
+                className={`border rounded-lg transition-all duration-300 ${
+                    openFaq === index 
+                    ? 'ring-2 ring-primary-600 border-primary-600 dark:border-primary-500 shadow-lg' 
+                    : 'border-neutral-200 dark:border-neutral-700 hover:border-primary-300 dark:hover:border-primary-700'
+                }`}
+                >
+                <button
+                    onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                    className="w-full flex justify-between items-center p-5 text-left font-semibold"
+                >
+                    <span className={`transition-colors duration-200 ${
+                    openFaq === index 
+                        ? 'text-primary-600 dark:text-primary-500' 
+                        : 'hover:text-primary-600 dark:hover:text-primary-400'
+                    }`}>
+                    {faq.q}
+                    </span>
+                    <ChevronDownIcon 
+                    className={`h-5 w-5 transform transition-all duration-500 ${
+                        openFaq === index 
+                        ? 'rotate-180 text-primary-600 dark:text-primary-500' 
+                        : ''
+                    }`} 
+                    />
+                </button>
+                
+                <div
+                    className={`grid transition-all duration-500 ease-in-out ${
+                    openFaq === index 
+                        ? 'grid-rows-[1fr] opacity-100' 
+                        : 'grid-rows-[0fr] opacity-0'
+                    }`}
+                >
+                    <div className="overflow-hidden">
+                    <div className="p-5 pt-0 text-neutral-600 dark:text-neutral-400">
+                        {faq.a}
                     </div>
-                ))}
+                    </div>
+                </div>
+                </div>
+            ))}
             </div>
         </div>
-      </section>
+    </section>
       
       <section className="bg-primary-600 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
@@ -294,9 +326,9 @@ const LandingPage = ({ onLoginRedirect }: LandingPageProps) => {
           <p className="mt-4 text-lg text-primary-200">Înscrie-te astăzi și primește primul tracking gratuit.</p>
           <div className="mt-8 max-w-lg mx-auto">
             <form className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Input type="text" placeholder="Nume" className="bg-primary-500 border-primary-400 placeholder-primary-300 text-white" />
-                <Input type="text" placeholder="Companie" className="bg-primary-500 border-primary-400 placeholder-primary-300 text-white" />
-                <Input type="email" placeholder="Email" className="sm:col-span-2 bg-primary-500 border-primary-400 placeholder-primary-300 text-white" />
+                <Input type="text" placeholder="Nume" className="bg-primary-500 border-primary-400 placeholder-primary-300 text-black" />
+                <Input type="text" placeholder="Companie" className="bg-primary-500 border-primary-400 placeholder-primary-300 text-black" />
+                <Input type="email" placeholder="Email" className="sm:col-span-2 bg-primary-500 border-primary-400 placeholder-primary-300 text-black" />
                 <Button type="submit" size="lg" variant="secondary" className="sm:col-span-2">Începe Acum</Button>
             </form>
             <p className="mt-4 text-sm text-primary-300">250+ companii au făcut deja acest pas.</p>
@@ -308,7 +340,7 @@ const LandingPage = ({ onLoginRedirect }: LandingPageProps) => {
         <div className="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div className="space-y-4">
-                    <PromoEffectLogo inFooter={true} />
+                    <Link to='/'><PromoEffectLogo inFooter={true} /></Link>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Platforma #1 pentru importul de containere în Moldova. Automatizăm logistica pentru ca afacerea ta să crească.</p>
                     <div className="flex space-x-4">
                         <a href="#" className="text-neutral-500 hover:text-primary-600"><FacebookIcon className="h-6 w-6" /></a>
@@ -336,8 +368,8 @@ const LandingPage = ({ onLoginRedirect }: LandingPageProps) => {
                     <h3 className="font-semibold font-heading">Contact</h3>
                     <ul className="mt-4 space-y-2 text-sm text-neutral-600 dark:text-neutral-400">
                         <li>Chișinău, Moldova</li>
-                        <li>+373 123 456 789</li>
-                        <li>contact@promo-efect.md</li>
+                        <li><a href="tel:+373123456789">+373 123 456 789</a></li>
+                        <li><a href="mailto:contact@promo-efect.md">contact@promo-efect.md</a></li>
                     </ul>
                 </div>
             </div>
